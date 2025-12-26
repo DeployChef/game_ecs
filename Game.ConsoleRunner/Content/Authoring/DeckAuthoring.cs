@@ -1,4 +1,4 @@
-namespace Game.Domain.Content.Authoring;
+namespace Game.ConsoleRunner.Content.Authoring;
 
 /// <summary>
 /// Authoring данные колоды - аналог MonoBehaviour компонента в Unity DOTS.
@@ -10,3 +10,4 @@ public class DeckAuthoring
 {
     public List<CardAuthoring> Cards { get; set; } = new();
 }
+

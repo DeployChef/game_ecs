@@ -1,6 +1,6 @@
 using Game.Domain.Core;
 
-namespace Game.Domain.Content.Authoring;
+namespace Game.ConsoleRunner.Content.Authoring;
 
 /// <summary>
 /// Authoring данные карты - аналог MonoBehaviour компонента в Unity DOTS.
@@ -15,3 +15,4 @@ public class CardAuthoring
     public CardRank Rank { get; set; }
     public CardSuit Suit { get; set; }
 }
+

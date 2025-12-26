@@ -1,6 +1,4 @@
-using Game.Domain.ECS.Baking;
-
-namespace Game.Domain.ECS.Baking;
+namespace Game.ConsoleRunner.Baking;
 
 /// <summary>
 /// Система для выполнения Baking - аналог BakingSystem из Unity DOTS.
@@ -13,9 +11,9 @@ namespace Game.Domain.ECS.Baking;
 public class BakingSystem
 {
     private readonly Dictionary<Type, object> _bakers = new();
-    private readonly World _world;
+    private readonly Game.Domain.ECS.World _world;
 
-    public BakingSystem(World world)
+    public BakingSystem(Game.Domain.ECS.World world)
     {
         _world = world ?? throw new ArgumentNullException(nameof(world));
     }

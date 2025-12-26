@@ -1,6 +1,6 @@
-using Game.Domain.Content.Authoring;
+using Game.ConsoleRunner.Content.Authoring;
 
-namespace Game.Domain.Content.CMS;
+namespace Game.ConsoleRunner.Content.CMS;
 
 /// <summary>
 /// Интерфейс для CMS (Content Management System).
@@ -12,11 +12,6 @@ namespace Game.Domain.Content.CMS;
 /// - Загрузку контента (из JSON, редактора, и т.д.)
 /// - Валидацию данных
 /// - Возврат Authoring объектов
-/// 
-/// Почему интерфейс?
-/// - Реализация может быть разной (JSON загрузка, Unity Editor, и т.д.)
-/// - Домен не знает, откуда берется контент
-/// - Легко тестировать (mock реализация)
 /// </summary>
 public interface IContentManager
 {

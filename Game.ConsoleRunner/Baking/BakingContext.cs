@@ -1,6 +1,6 @@
 using Game.Domain.ECS;
 
-namespace Game.Domain.ECS.Baking;
+namespace Game.ConsoleRunner.Baking;
 
 /// <summary>
 /// Контекст для Baking - аналог BakerState из Unity DOTS.
@@ -34,7 +34,7 @@ public class BakingContext
     /// <summary>
     /// Добавляет компонент к Entity.
     /// </summary>
-    public void AddComponent<T>(Entity entity, T component) where T : struct, IComponent
+    public void AddComponent<T>(Entity entity, T component) where T : struct, Game.Domain.ECS.IComponent
     {
         World.AddComponent(entity, component);
     }

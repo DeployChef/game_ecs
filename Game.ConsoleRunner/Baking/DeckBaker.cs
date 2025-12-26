@@ -1,8 +1,8 @@
-using Game.Domain.Content.Authoring;
+using Game.ConsoleRunner.Content.Authoring;
 using Game.Domain.Core;
 using Game.Domain.ECS.Components;
 
-namespace Game.Domain.ECS.Baking;
+namespace Game.ConsoleRunner.Baking;
 
 /// <summary>
 /// Baking система для DeckAuthoring - аналог IBaker<DeckAuthoring> из Unity DOTS.
@@ -32,7 +32,7 @@ public class DeckBaker : IBaker<DeckAuthoring>
         foreach (var cardAuthoring in authoring.Cards)
         {
             // 1. Создаем Entity
-            Entity card = context.CreateEntity();
+            var card = context.CreateEntity();
 
             // 2. Добавляем компоненты
             context.AddComponent(card, new CardRankComponent(cardAuthoring.Rank));

@@ -1,0 +1,20 @@
+{
+  "Id": "standard_deck",
+  "Name": "Standard Deck",
+  "CardIds": [
+    "Two_Spades", "Two_Hearts", "Two_Diamonds", "Two_Clubs",
+    "Three_Spades", "Three_Hearts", "Three_Diamonds", "Three_Clubs",
+    "Four_Spades", "Four_Hearts", "Four_Diamonds", "Four_Clubs",
+    "Five_Spades", "Five_Hearts", "Five_Diamonds", "Five_Clubs",
+    "Six_Spades", "Six_Hearts", "Six_Diamonds", "Six_Clubs",
+    "Seven_Spades", "Seven_Hearts", "Seven_Diamonds", "Seven_Clubs",
+    "Eight_Spades", "Eight_Hearts", "Eight_Diamonds", "Eight_Clubs",
+    "Nine_Spades", "Nine_Hearts", "Nine_Diamonds", "Nine_Clubs",
+    "Ten_Spades", "Ten_Hearts", "Ten_Diamonds", "Ten_Clubs",
+    "Jack_Spades", "Jack_Hearts", "Jack_Diamonds", "Jack_Clubs",
+    "Queen_Spades", "Queen_Hearts", "Queen_Diamonds", "Queen_Clubs",
+    "King_Spades", "King_Hearts", "King_Diamonds", "King_Clubs",
+    "Ace_Spades", "Ace_Hearts", "Ace_Diamonds", "Ace_Clubs"
+  ]
+}
+

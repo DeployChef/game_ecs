@@ -1,4 +1,4 @@
-namespace Game.Domain.ECS.Baking;
+namespace Game.ConsoleRunner.Baking;
 
 /// <summary>
 /// Интерфейс для Baking систем - аналог IBaker<T> из Unity DOTS.
