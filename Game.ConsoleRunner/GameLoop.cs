@@ -3,6 +3,7 @@ using Game.Domain.ECS;
 using Game.Domain.ECS.Components;
 using Game.Domain.GameState;
 using Game.Domain.Poker;
+using Game.Domain.Run;
 using Game.Domain.Services;
 using Run = Game.Domain.Run.Run;
 
@@ -29,10 +30,10 @@ public class GameLoop
 
         // Инициализация
         _run.StateMachine.StartTurn();
-        Console.WriteLine($"Состояние: {_run.StateMachine.CurrentState}");
+        ShowRoundState();
 
         // Игровой цикл
-        while (_run.StateMachine.CurrentState != GameStateType.EndTurn)
+        while (_run.StateMachine.CurrentState != GameStateType.EndTurn && _run.State == Game.Domain.Run.RunState.Playing)
         {
             switch (_run.StateMachine.CurrentState)
             {
@@ -51,7 +52,33 @@ public class GameLoop
             }
         }
 
-        Console.WriteLine("\n=== Игра завершена ===");
+        // Проверка конца игры
+        if (_run.State == Game.Domain.Run.RunState.Lost)
+        {
+            Console.WriteLine("\n=== ВЫ ПРОИГРАЛИ ===");
+            Console.WriteLine($"Не удалось достичь цели в {_run.RoundState.Ante} - {_run.RoundState.Round}");
+            Console.WriteLine($"Набрано очков: {_run.RoundState.Score}/{_run.RoundState.Goal}");
+        }
+        else if (_run.State == Game.Domain.Run.RunState.Won)
+        {
+            Console.WriteLine("\n=== ВЫ ВЫИГРАЛИ ===");
+            Console.WriteLine($"Поздравляем! Вы прошли все анте!");
+        }
+        else
+        {
+            Console.WriteLine("\n=== Игра завершена ===");
+        }
+    }
+    
+    private void ShowRoundState()
+    {
+        var state = _run.RoundState;
+        Console.WriteLine($"\n{state.Ante} - {state.Round} | Очки: {state.Score}/{state.Goal} (осталось: {state.Remaining})");
+        Console.WriteLine($"Сыграно рук: {state.HandsPlayed}/{RoundState.MaxHandsToPlay} | Сброшено рук: {state.HandsDiscarded}/{RoundState.MaxHandsToDiscard}");
+        if (state.IsComplete)
+        {
+            Console.WriteLine("✓ Раунд завершен! Переход к следующему...");
+        }
     }
 
     private void HandleDrawingHand()
@@ -63,7 +90,7 @@ public class GameLoop
         if (handInfo == null)
         {
             Console.WriteLine("Ошибка: рука не найдена!");
-            _run.StateMachine.EndTurn();
+            _run.Lose();
             return;
         }
         
@@ -80,8 +107,20 @@ public class GameLoop
         }
         else
         {
-            Console.WriteLine("Нет доступных карт в колоде!");
-            _run.StateMachine.EndTurn();
+            // Нет карт для взятия - проверяем, есть ли карты в руке
+            var currentHandInfo = _handService.GetHandInfo(_run.HandEntity);
+            if (currentHandInfo.HasValue && currentHandInfo.Value.Cards.Count > 0)
+            {
+                // В руке есть карты - можно продолжать играть
+                Console.WriteLine("Колода пуста, но в руке есть карты. Продолжаем с текущими картами.");
+                _run.StateMachine.CardsDrawn();
+            }
+            else
+            {
+                // Колода пуста и рука пуста - конец игры (проигрыш)
+                Console.WriteLine("Колода пуста и рука пуста. Игра завершена.");
+                _run.Lose();
+            }
         }
     }
 
@@ -91,7 +130,7 @@ public class GameLoop
         Console.WriteLine("Команды:");
         Console.WriteLine("  - Номера карт (например: 1 3 5) - выбрать/снять выбор с карт (toggle, максимум 5)");
         Console.WriteLine("  - 'discard' или 'd' - сбросить выбранные карты");
-        Console.WriteLine("  - 'play' - сыграть выбранные карты (максимум 5)");
+        Console.WriteLine("  - 'play' или 'p' - сыграть выбранные карты (максимум 5)");
         Console.WriteLine("  - 'clear' - снять выбор со всех карт");
 
         ShowHandWithNumbers();
@@ -109,6 +148,14 @@ public class GameLoop
         // Команда сброса выбранных карт
         if (lowerInput == "discard" || lowerInput == "d")
         {
+            // Проверяем ограничение на количество сброшенных рук
+            if (!_run.RoundState.CanDiscardHand)
+            {
+                Console.WriteLine($"Достигнут лимит сброса рук! Можно сбросить максимум {RoundState.MaxHandsToDiscard} рук за раунд.");
+                Console.WriteLine($"Уже сброшено: {_run.RoundState.HandsDiscarded}");
+                return;
+            }
+            
             var selectedCards = _handService.GetSelectedCards(_run.HandEntity);
             if (selectedCards.Count == 0)
             {
@@ -126,6 +173,17 @@ public class GameLoop
 
             int discarded = _handService.DiscardCards(_run.HandEntity, selectedCards);
             Console.WriteLine($"Сброшено карт: {discarded}");
+            
+            // Увеличиваем счетчик сброшенных рук
+            try
+            {
+                _run.IncrementHandsDiscarded();
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine($"Ошибка: {ex.Message}");
+                return;
+            }
             
             // Очищаем выбор после сброса
             _handService.ClearSelection(_run.HandEntity);
@@ -145,6 +203,14 @@ public class GameLoop
                     _handService.SortHand(_run.HandEntity);
                 }
             }
+            
+            // Проверяем конец игры после сброса
+            if (_run.State != Game.Domain.Run.RunState.Playing)
+            {
+                return;
+            }
+            
+            ShowRoundState();
             return;
         }
 
@@ -157,8 +223,16 @@ public class GameLoop
         }
 
         // Команда игры выбранных карт
-        if (lowerInput == "play")
+        if (lowerInput == "play" || lowerInput == "p")
         {
+            // Проверяем ограничение на количество сыгранных рук
+            if (!_run.RoundState.CanPlayHand)
+            {
+                Console.WriteLine($"Достигнут лимит игры рук! Можно сыграть максимум {RoundState.MaxHandsToPlay} рук за раунд.");
+                Console.WriteLine($"Уже сыграно: {_run.RoundState.HandsPlayed}");
+                return;
+            }
+            
             var selectedCards = _handService.GetSelectedCards(_run.HandEntity);
             if (selectedCards.Count == 0)
             {
@@ -223,7 +297,7 @@ public class GameLoop
         if (toggled > 0)
         {
             var selectedAfter = _handService.GetSelectedCards(_run.HandEntity);
-            Console.WriteLine($"Выбрано карт: {selectedAfter.Count}/5. Введите 'play' для игры, 'discard' для сброса или выберите еще карты.");
+            Console.WriteLine($"Выбрано карт: {selectedAfter.Count}/5. Введите 'play' или 'p' для игры, 'discard' или 'd' для сброса или выберите еще карты.");
         }
         else
         {
@@ -252,28 +326,115 @@ public class GameLoop
         Console.WriteLine($"\nКомбинация: {result.HandType}");
         Console.WriteLine($"Базовые очки: {result.BaseScore}");
 
+        // Сохраняем старое состояние раунда ДО добавления очков
+        var oldRoundState = _run.RoundState;
+        var wasRoundCompleteBefore = oldRoundState.IsComplete;
+
+        // Добавляем очки к раунду (также увеличивает счетчик сыгранных рук)
+        try
+        {
+            _run.AddHandScore(result.BaseScore);
+            Console.WriteLine($"\nОчки раунда: {_run.RoundState.Score}/{_run.RoundState.Goal}");
+            
+            // Проверяем, завершился ли раунд после добавления очков
+            if (!wasRoundCompleteBefore && _run.RoundState.IsComplete)
+            {
+                Console.WriteLine("✓ Цель раунда достигнута!");
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.WriteLine($"Ошибка: {ex.Message}");
+        }
+
         _run.StateMachine.HandCompleted();
     }
 
     private void HandleHandComplete()
     {
-        Console.WriteLine("\n--- Сброс карт ---");
-        _handService.DiscardHand(_run.HandEntity);
-        Console.WriteLine("Карты сброшены");
-
-        // При новом раунде колода автоматически перемешивается через RNG в DrawSystem
-        Console.WriteLine("Колода перемешана для нового раунда");
-
-        Console.WriteLine("\nПродолжить? (y/n)");
-        string? input = Console.ReadLine();
-        if (input?.ToLower() == "y")
+        // Проверяем конец игры
+        if (_run.State != Game.Domain.Run.RunState.Playing)
         {
-            _run.StateMachine.StartTurn();
+            _run.StateMachine.EndTurn();
+            return;
+        }
+
+        // Проверяем, был ли переход к новому раунду (сравниваем текущее состояние с предыдущим)
+        // Если раунд изменился, значит был переход
+        var currentRoundState = _run.RoundState;
+        var isNewRound = currentRoundState.Score == 0 && currentRoundState.HandsPlayed == 0 && currentRoundState.HandsDiscarded == 0;
+
+        // Если новый раунд - полная пересборка руки (сброс всех карт, взятие новой, сортировка)
+        if (isNewRound)
+        {
+            Console.WriteLine("\n--- Переход к новому раунду ---");
+            Console.WriteLine($"Текущий раунд: {_run.RoundState.Ante} - {_run.RoundState.Round}");
+            
+            // Сбрасываем всю руку
+            _handService.DiscardHand(_run.HandEntity);
+            Console.WriteLine("Рука сброшена");
+            
+            // Берем новую руку до максимума
+            var handInfo = _handService.GetHandInfo(_run.HandEntity);
+            if (handInfo.HasValue)
+            {
+                int cardsToDraw = handInfo.Value.MaxHandSize;
+                int drawn = _handService.DrawCards(_run.HandEntity, cardsToDraw, _run.Rng);
+                Console.WriteLine($"Взято карт: {drawn}");
+                
+                // Сортируем руку при новом раунде
+                _handService.SortHand(_run.HandEntity);
+            }
         }
         else
         {
-            _run.StateMachine.EndTurn();
+            // Внутри раунда - сбрасываем только сыгранные карты и добираем до максимума
+            Console.WriteLine("\n--- Сброс сыгранных карт ---");
+            
+            var selectedCards = _handService.GetSelectedCards(_run.HandEntity);
+            if (selectedCards.Count > 0)
+            {
+                // Сбрасываем только сыгранные карты
+                int discarded = _handService.DiscardCards(_run.HandEntity, selectedCards);
+                Console.WriteLine($"Сброшено карт: {discarded}");
+                
+                // Очищаем выбор
+                _handService.ClearSelection(_run.HandEntity);
+            }
+            else
+            {
+                // Если игрались все карты в руке - сбрасываем всю руку
+                _handService.DiscardHand(_run.HandEntity);
+                Console.WriteLine("Все карты сброшены");
+            }
+            
+            // Добираем карты до максимума в руке
+            var handAfter = _handService.GetHandInfo(_run.HandEntity);
+            if (handAfter.HasValue)
+            {
+                int cardsToDraw = handAfter.Value.AvailableSlots;
+                if (cardsToDraw > 0)
+                {
+                    int drawn = _handService.DrawCards(_run.HandEntity, cardsToDraw, _run.Rng);
+                    Console.WriteLine($"Добрано карт: {drawn}");
+                    // НЕ сортируем - сортировка только при новом раунде
+                }
+            }
         }
+
+        ShowRoundState();
+
+        // Проверяем, можем ли продолжать играть
+        if (!_run.RoundState.CanPlayHand && !_run.RoundState.CanDiscardHand && !_run.RoundState.IsComplete)
+        {
+            Console.WriteLine("\n⚠ Нет доступных действий! Вы не можете больше играть или сбрасывать руки.");
+            Console.WriteLine("Игра завершена.");
+            _run.StateMachine.EndTurn();
+            return;
+        }
+
+        // Автоматически продолжаем игру
+        _run.StateMachine.StartTurn();
     }
 
     private void ShowHand()

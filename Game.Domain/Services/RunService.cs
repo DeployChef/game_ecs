@@ -2,6 +2,7 @@ using Game.Domain.ECS;
 using Game.Domain.ECS.Components;
 using Game.Domain.GameState;
 using Game.Domain.Random;
+using Game.Domain.Run;
 
 namespace Game.Domain.Services;
 
@@ -11,7 +12,7 @@ namespace Game.Domain.Services;
 /// Инкапсулирует логику инициализации рана:
 /// 1. Принимает уже загруженные данные колоды (DeckContentData)
 /// 2. Создает World и инициализирует его с картами
-/// 3. Инициализирует руку, StateMachine, RNG
+/// 3. Инициализирует руку, StateMachine, RNG, RoundState
 /// 
 /// Примечание: Baking (конвертация данных в Entity) происходит в инфраструктуре,
 /// перед вызовом CreateRun. RunService работает только с готовым World.
@@ -48,9 +49,15 @@ public class RunService : IRunService
         // 2. Создаем StateMachine
         var stateMachine = new GameStateMachine(world, handEntity);
         
-        // 3. Создаем Run
+        // 3. Инициализируем RoundState: Ante 1, Round 1, Goal 300
+        var initialAnte = new Ante(1);
+        var initialRound = new Round(1);
+        var initialGoal = BlindGoalCalculator.Calculate(initialAnte, initialRound);
+        var initialRoundState = new RoundState(initialAnte, initialRound, 0, initialGoal);
+        
+        // 4. Создаем Run
         var actualSeed = seed ?? 0; // Seed для логирования, если не передан
-        return new Game.Domain.Run.Run(world, handEntity, stateMachine, deckId, actualSeed, rng);
+        return new Game.Domain.Run.Run(world, handEntity, stateMachine, deckId, actualSeed, rng, initialRoundState);
     }
 }
 
