@@ -21,18 +21,36 @@ public static class HandEvaluator
 {
     /// <summary>
     /// Оценивает руку и возвращает тип комбинации и базовые очки.
-    /// Проверяет комбинации от старшей к младшей.
+    /// Если есть выбранные карты - оценивает их, иначе оценивает все карты в руке.
     /// </summary>
     public static HandEvaluationResult Evaluate(World world, Entity handEntity)
     {
-        var hand = world.GetComponent<HandComponent>(handEntity);
-        if (!hand.HasValue || hand.Value.Cards.Count == 0)
+        // Проверяем, есть ли выбранные карты
+        var selected = world.GetComponent<SelectedCardsComponent>(handEntity);
+        List<Entity> cardsToEvaluate;
+
+        if (selected.HasValue && selected.Value.SelectedCards.Count > 0)
+        {
+            // Оцениваем выбранные карты
+            cardsToEvaluate = selected.Value.SelectedCards;
+        }
+        else
+        {
+            // Оцениваем все карты в руке
+            var hand = world.GetComponent<HandComponent>(handEntity);
+            if (!hand.HasValue || hand.Value.Cards.Count == 0)
+            {
+                return new HandEvaluationResult(PokerHandType.HighCard, 0);
+            }
+            cardsToEvaluate = hand.Value.Cards;
+        }
+
+        if (cardsToEvaluate.Count == 0)
         {
             return new HandEvaluationResult(PokerHandType.HighCard, 0);
         }
 
-        var cards = hand.Value.Cards;
-        var cardData = GetCardData(world, cards);
+        var cardData = GetCardData(world, cardsToEvaluate);
 
         // Проверяем комбинации от старшей к младшей
         if (IsFlushRoyal(cardData))

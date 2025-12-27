@@ -47,6 +47,42 @@ public class DiscardSystem : ISystem
     }
 
     /// <summary>
+    /// Сбрасывает конкретные карты из руки.
+    /// </summary>
+    public int DiscardCards(World world, Entity handEntity, List<Entity> cardsToDiscard)
+    {
+        var hand = world.GetComponent<HandComponent>(handEntity);
+        if (!hand.HasValue)
+            return 0;
+
+        var handComponent = hand.Value;
+        int discarded = 0;
+
+        // Меняем State выбранных карт на Discarded и удаляем из руки
+        foreach (var cardEntity in cardsToDiscard)
+        {
+            if (!handComponent.Cards.Contains(cardEntity))
+                continue;
+
+            var cardState = world.GetComponent<CardStateComponent>(cardEntity);
+            if (cardState.HasValue)
+            {
+                var newState = cardState.Value;
+                newState.State = CardState.Discarded;
+                world.AddComponent(cardEntity, newState);
+            }
+
+            handComponent.Cards.Remove(cardEntity);
+            discarded++;
+        }
+
+        // Обновляем руку
+        world.AddComponent(handEntity, handComponent);
+
+        return discarded;
+    }
+
+    /// <summary>
     /// Update не используется - сброс вызывается явно.
     /// </summary>
     public void Update(World world)
