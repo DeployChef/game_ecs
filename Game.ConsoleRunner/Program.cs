@@ -1,8 +1,11 @@
-﻿using Game.ConsoleRunner.Baking;
-using Game.ConsoleRunner.Content.Authoring;
-using Game.ConsoleRunner.Content.CMS;
-using Game.Domain.ECS;
-using Game.Domain.ECS.Components;
+﻿using Game.Application.UseCases;
+using Game.ConsoleRunner.Menu;
+using Game.Domain.Services;
+using Game.Domain.Run;
+using Game.Infrastructure.Baking;
+using Game.Infrastructure.Content.Authoring;
+using Game.Infrastructure.Content.CMS;
+using Game.Infrastructure.Random;
 
 namespace Game.ConsoleRunner;
 
@@ -10,27 +13,64 @@ class Program
 {
     static void Main(string[] args)
     {
-        // 1. Создаем World (домен)
-        World world = new World();
-
-        // 2. Загружаем контент из JSON (вне домена)
+        // 1. Инициализация инфраструктуры
         IContentManager contentManager = new JsonContentManager();
-        DeckAuthoring deckAuthoring = contentManager.LoadDeck("standard_deck");
-        Console.WriteLine($"Загружена колода: {deckAuthoring.Cards.Count} карт");
-
-        // 3. Baking - конвертация контента в Entity (вне домена)
-        BakingSystem bakingSystem = new BakingSystem(world);
+        var contentLoader = new DeckContentLoaderAdapter(contentManager);
+        
+        // 2. Инициализация доменных сервисов
+        IRunService runService = new RunService();
+        IHandService handService = new HandService(new Game.Domain.ECS.World()); // Временный World, будет заменен
+        
+        // 3. Инициализация Application use cases
+        var startRunUseCase = new StartRunUseCase(runService);
+        
+        // 4. Меню выбора колоды
+        var menu = new DeckSelectionMenu();
+        string? deckId = menu.ShowAndGetSelection();
+        
+        if (deckId == null)
+        {
+            Console.WriteLine("Выход из игры");
+            return;
+        }
+        
+        // 5. Загрузка данных колоды (через доменный интерфейс)
+        Console.WriteLine($"\nЗагрузка колоды: {deckId}...");
+        var deckData = contentLoader.LoadDeck(deckId);
+        Console.WriteLine($"Загружена колода: {deckData.Cards.Count} карт");
+        
+        // 6. Создаем World и выполняем Baking (инфраструктура)
+        // Baking конвертирует данные в Entity
+        var world = new Game.Domain.ECS.World();
+        var deckAuthoring = ConvertToAuthoring(deckData); // Временная конвертация
+        var bakingSystem = new BakingSystem(world);
         bakingSystem.RegisterBaker(new DeckBaker());
         bakingSystem.Bake(deckAuthoring);
         Console.WriteLine("Baking завершен - Entity созданы в World\n");
-
-        // 4. Создаем руку (домен)
-        Entity handEntity = world.CreateEntity();
-        world.AddComponent(handEntity, new HandComponent(maxHandSize: 8));
-
-        // 5. Запускаем игровой цикл с фиксированным seed для воспроизводимой раздачи
-        int seed = 12345; // Фиксированный seed - каждый запуск даст одинаковую раздачу
-        GameLoop gameLoop = new GameLoop(world, handEntity, seed);
+        
+        // 7. Создаем ран через UseCase (Application)
+        var run = startRunUseCase.Execute(deckId, world);
+        Console.WriteLine($"Ран создан (seed: {run.Seed})\n");
+        
+        // 8. Запускаем игровой цикл (презентация)
+        handService = new HandService(run.World);
+        var gameLoop = new GameLoop(run, handService);
         gameLoop.Run();
+    }
+    
+    // Временный метод для конвертации DeckContentData в DeckAuthoring
+    // В будущем нужно будет переделать Baking чтобы работал с DeckContentData напрямую
+    private static DeckAuthoring ConvertToAuthoring(Game.Domain.Content.DeckContentData deckData)
+    {
+        var authoring = new DeckAuthoring();
+        foreach (var cardData in deckData.Cards)
+        {
+            authoring.Cards.Add(new CardAuthoring
+            {
+                Rank = cardData.Rank,
+                Suit = cardData.Suit
+            });
+        }
+        return authoring;
     }
 }

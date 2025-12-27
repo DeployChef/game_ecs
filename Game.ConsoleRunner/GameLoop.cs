@@ -1,13 +1,10 @@
-using Game.ConsoleRunner.Baking;
-using Game.ConsoleRunner.Content.Authoring;
-using Game.ConsoleRunner.Content.CMS;
 using Game.Domain.Core;
 using Game.Domain.ECS;
 using Game.Domain.ECS.Components;
-using Game.Domain.ECS.Systems;
 using Game.Domain.GameState;
 using Game.Domain.Poker;
-using Game.Domain.Random;
+using Game.Domain.Services;
+using Run = Game.Domain.Run.Run;
 
 namespace Game.ConsoleRunner;
 
@@ -16,27 +13,13 @@ namespace Game.ConsoleRunner;
 /// </summary>
 public class GameLoop
 {
-    private readonly World _world;
-    private readonly Entity _handEntity;
-    private readonly GameStateMachine _stateMachine;
-    private readonly DrawSystem _drawSystem;
-    private readonly DiscardSystem _discardSystem;
-    private readonly CardSelectionSystem _selectionSystem;
-    private IRandomNumberGenerator _rng;
+    private readonly Run _run;
+    private readonly IHandService _handService;
 
-    public GameLoop(World world, Entity handEntity, int? seed = null)
+    public GameLoop(Run run, IHandService handService)
     {
-        _world = world;
-        _handEntity = handEntity;
-        _stateMachine = new GameStateMachine(world, handEntity);
-        _drawSystem = new DrawSystem();
-        _discardSystem = new DiscardSystem();
-        _selectionSystem = new CardSelectionSystem();
-        
-        // Создаем RNG с seed для детерминированного перемешивания
-        _rng = seed.HasValue 
-            ? new SeededRandomNumberGenerator(seed.Value) 
-            : new SeededRandomNumberGenerator(Environment.TickCount);
+        _run = run ?? throw new ArgumentNullException(nameof(run));
+        _handService = handService ?? throw new ArgumentNullException(nameof(handService));
     }
 
     public void Run()
@@ -45,13 +28,13 @@ public class GameLoop
         Console.WriteLine();
 
         // Инициализация
-        _stateMachine.StartTurn();
-        Console.WriteLine($"Состояние: {_stateMachine.CurrentState}");
+        _run.StateMachine.StartTurn();
+        Console.WriteLine($"Состояние: {_run.StateMachine.CurrentState}");
 
         // Игровой цикл
-        while (_stateMachine.CurrentState != GameStateType.EndTurn)
+        while (_run.StateMachine.CurrentState != GameStateType.EndTurn)
         {
-            switch (_stateMachine.CurrentState)
+            switch (_run.StateMachine.CurrentState)
             {
                 case GameStateType.DrawingHand:
                     HandleDrawingHand();
@@ -74,27 +57,31 @@ public class GameLoop
     private void HandleDrawingHand()
     {
         Console.WriteLine("\n--- Взятие карт ---");
-        // Берем карты до максимума (8 карт)
-        var hand = _world.GetComponent<HandComponent>(_handEntity);
-        int maxCards = hand.HasValue ? hand.Value.MaxHandSize : 8;
-        int currentCards = hand.HasValue ? hand.Value.Cards.Count : 0;
-        int cardsToDraw = maxCards - currentCards;
         
-        // Используем RNG для перемешивания колоды
-        int drawn = _drawSystem.DrawCards(_world, _handEntity, cardsToDraw, _rng);
-        Console.WriteLine($"Взято карт: {drawn} (максимум в руке: {maxCards})");
+        // Получаем информацию о руке через сервис
+        var handInfo = _handService.GetHandInfo(_run.HandEntity);
+        if (handInfo == null)
+        {
+            Console.WriteLine("Ошибка: рука не найдена!");
+            _run.StateMachine.EndTurn();
+            return;
+        }
+        
+        int cardsToDraw = handInfo.Value.AvailableSlots;
+        int drawn = _handService.DrawCards(_run.HandEntity, cardsToDraw, _run.Rng);
+        Console.WriteLine($"Взято карт: {drawn} (максимум в руке: {handInfo.Value.MaxHandSize})");
 
         if (drawn > 0)
         {
             // Сортируем руку после взятия карт
-            SortHand();
+            _handService.SortHand(_run.HandEntity);
             ShowHand();
-            _stateMachine.CardsDrawn();
+            _run.StateMachine.CardsDrawn();
         }
         else
         {
             Console.WriteLine("Нет доступных карт в колоде!");
-            _stateMachine.EndTurn();
+            _run.StateMachine.EndTurn();
         }
     }
 
@@ -122,43 +109,40 @@ public class GameLoop
         // Команда сброса выбранных карт
         if (lowerInput == "discard" || lowerInput == "d")
         {
-            var selected = _world.GetComponent<SelectedCardsComponent>(_handEntity);
-            if (!selected.HasValue || selected.Value.SelectedCards.Count == 0)
+            var selectedCards = _handService.GetSelectedCards(_run.HandEntity);
+            if (selectedCards.Count == 0)
             {
                 Console.WriteLine("Нет выбранных карт для сброса! Выберите карты сначала.");
                 return;
             }
 
             // Ограничение: максимум 5 карт для сброса
-            if (selected.Value.SelectedCards.Count > 5)
+            if (selectedCards.Count > 5)
             {
-                Console.WriteLine($"Можно сбросить максимум 5 карт! Выбрано: {selected.Value.SelectedCards.Count}");
+                Console.WriteLine($"Можно сбросить максимум 5 карт! Выбрано: {selectedCards.Count}");
                 Console.WriteLine("Снимите выбор с лишних карт.");
                 return;
             }
 
-            int discarded = _discardSystem.DiscardCards(_world, _handEntity, selected.Value.SelectedCards);
+            int discarded = _handService.DiscardCards(_run.HandEntity, selectedCards);
             Console.WriteLine($"Сброшено карт: {discarded}");
             
             // Очищаем выбор после сброса
-            _selectionSystem.ClearSelection(_world, _handEntity);
+            _handService.ClearSelection(_run.HandEntity);
             
             // Добираем карты до максимума в руке
-            var handAfter = _world.GetComponent<HandComponent>(_handEntity);
+            var handAfter = _handService.GetHandInfo(_run.HandEntity);
             if (handAfter.HasValue)
             {
-                int maxCards = handAfter.Value.MaxHandSize;
-                int currentCards = handAfter.Value.Cards.Count;
-                int cardsToDraw = maxCards - currentCards;
+                int cardsToDraw = handAfter.Value.AvailableSlots;
                 
                 if (cardsToDraw > 0)
                 {
-                    // Используем RNG для перемешивания колоды
-                    int drawn = _drawSystem.DrawCards(_world, _handEntity, cardsToDraw, _rng);
+                    int drawn = _handService.DrawCards(_run.HandEntity, cardsToDraw, _run.Rng);
                     Console.WriteLine($"Добрано карт: {drawn}");
                     
                     // Сортируем руку после добора карт
-                    SortHand();
+                    _handService.SortHand(_run.HandEntity);
                 }
             }
             return;
@@ -167,7 +151,7 @@ public class GameLoop
         // Команда очистки выбора
         if (lowerInput == "clear")
         {
-            _selectionSystem.ClearSelection(_world, _handEntity);
+            _handService.ClearSelection(_run.HandEntity);
             Console.WriteLine("Выбор снят со всех карт.");
             return;
         }
@@ -175,35 +159,33 @@ public class GameLoop
         // Команда игры выбранных карт
         if (lowerInput == "play")
         {
-            var selected = _world.GetComponent<SelectedCardsComponent>(_handEntity);
-            if (!selected.HasValue || selected.Value.SelectedCards.Count == 0)
+            var selectedCards = _handService.GetSelectedCards(_run.HandEntity);
+            if (selectedCards.Count == 0)
             {
                 Console.WriteLine("Нет выбранных карт! Выберите карты для игры.");
                 return;
             }
 
             // Ограничение: максимум 5 карт для игры
-            if (selected.Value.SelectedCards.Count > 5)
+            if (selectedCards.Count > 5)
             {
-                Console.WriteLine($"Можно сыграть максимум 5 карт! Выбрано: {selected.Value.SelectedCards.Count}");
+                Console.WriteLine($"Можно сыграть максимум 5 карт! Выбрано: {selectedCards.Count}");
                 Console.WriteLine("Снимите выбор с лишних карт.");
                 return;
             }
 
-            _stateMachine.CardsSelected();
+            _run.StateMachine.CardsSelected();
             return;
         }
 
         // Выбор карт по номерам (toggle)
         var numbers = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var handForSelection = _world.GetComponent<HandComponent>(_handEntity);
+        var handForSelection = _handService.GetHandInfo(_run.HandEntity);
         if (!handForSelection.HasValue)
             return;
 
-        var currentSelected = _world.GetComponent<SelectedCardsComponent>(_handEntity);
-        var selectedSet = currentSelected.HasValue 
-            ? new HashSet<Entity>(currentSelected.Value.SelectedCards) 
-            : new HashSet<Entity>();
+        var currentSelected = _handService.GetSelectedCards(_run.HandEntity);
+        var selectedSet = new HashSet<Entity>(currentSelected);
 
         int toggled = 0;
         foreach (var numStr in numbers)
@@ -226,7 +208,7 @@ public class GameLoop
                     }
                 }
 
-                if (_selectionSystem.ToggleCardSelection(_world, _handEntity, cardEntity))
+                if (_handService.ToggleCardSelection(_run.HandEntity, cardEntity))
                 {
                     toggled++;
                     // Обновляем set для следующей итерации
@@ -240,9 +222,8 @@ public class GameLoop
 
         if (toggled > 0)
         {
-            var selectedAfter = _world.GetComponent<SelectedCardsComponent>(_handEntity);
-            int selectedCount = selectedAfter.HasValue ? selectedAfter.Value.SelectedCards.Count : 0;
-            Console.WriteLine($"Выбрано карт: {selectedCount}/5. Введите 'play' для игры, 'discard' для сброса или выберите еще карты.");
+            var selectedAfter = _handService.GetSelectedCards(_run.HandEntity);
+            Console.WriteLine($"Выбрано карт: {selectedAfter.Count}/5. Введите 'play' для игры, 'discard' для сброса или выберите еще карты.");
         }
         else
         {
@@ -254,11 +235,11 @@ public class GameLoop
     {
         Console.WriteLine("\n--- Игра руки ---");
 
-        var selected = _world.GetComponent<SelectedCardsComponent>(_handEntity);
-        if (selected.HasValue && selected.Value.SelectedCards.Count > 0)
+        var selectedCards = _handService.GetSelectedCards(_run.HandEntity);
+        if (selectedCards.Count > 0)
         {
             Console.WriteLine("Выбранные карты:");
-            ShowSelectedCards(selected.Value.SelectedCards);
+            ShowSelectedCards(selectedCards);
         }
         else
         {
@@ -267,18 +248,17 @@ public class GameLoop
         }
 
         // Оценка руки
-        var result = HandEvaluator.Evaluate(_world, _handEntity);
+        var result = HandEvaluator.Evaluate(_run.World, _run.HandEntity);
         Console.WriteLine($"\nКомбинация: {result.HandType}");
         Console.WriteLine($"Базовые очки: {result.BaseScore}");
 
-        _stateMachine.HandCompleted();
+        _run.StateMachine.HandCompleted();
     }
 
     private void HandleHandComplete()
     {
         Console.WriteLine("\n--- Сброс карт ---");
-        _discardSystem.DiscardHand(_world, _handEntity);
-        _selectionSystem.ClearSelection(_world, _handEntity);
+        _handService.DiscardHand(_run.HandEntity);
         Console.WriteLine("Карты сброшены");
 
         // При новом раунде колода автоматически перемешивается через RNG в DrawSystem
@@ -288,27 +268,27 @@ public class GameLoop
         string? input = Console.ReadLine();
         if (input?.ToLower() == "y")
         {
-            _stateMachine.StartTurn();
+            _run.StateMachine.StartTurn();
         }
         else
         {
-            _stateMachine.EndTurn();
+            _run.StateMachine.EndTurn();
         }
     }
 
     private void ShowHand()
     {
-        var hand = _world.GetComponent<HandComponent>(_handEntity);
-        if (!hand.HasValue || hand.Value.Cards.Count == 0)
+        var handInfo = _handService.GetHandInfo(_run.HandEntity);
+        if (!handInfo.HasValue || handInfo.Value.Cards.Count == 0)
         {
             Console.WriteLine("Рука пуста");
             return;
         }
 
-        foreach (var cardEntity in hand.Value.Cards)
+        foreach (var cardEntity in handInfo.Value.Cards)
         {
-            var rank = _world.GetComponent<CardRankComponent>(cardEntity);
-            var suit = _world.GetComponent<CardSuitComponent>(cardEntity);
+            var rank = _run.World.GetComponent<CardRankComponent>(cardEntity);
+            var suit = _run.World.GetComponent<CardSuitComponent>(cardEntity);
             if (rank.HasValue && suit.HasValue)
             {
                 Console.WriteLine($"  - {rank.Value.Rank} {suit.Value.Suit}");
@@ -318,23 +298,21 @@ public class GameLoop
 
     private void ShowHandWithNumbers()
     {
-        var hand = _world.GetComponent<HandComponent>(_handEntity);
-        if (!hand.HasValue || hand.Value.Cards.Count == 0)
+        var handInfo = _handService.GetHandInfo(_run.HandEntity);
+        if (!handInfo.HasValue || handInfo.Value.Cards.Count == 0)
         {
             Console.WriteLine("Рука пуста");
             return;
         }
 
-        var selected = _world.GetComponent<SelectedCardsComponent>(_handEntity);
-        var selectedSet = selected.HasValue 
-            ? new HashSet<Entity>(selected.Value.SelectedCards) 
-            : new HashSet<Entity>();
+        var selectedCards = _handService.GetSelectedCards(_run.HandEntity);
+        var selectedSet = new HashSet<Entity>(selectedCards);
 
-        for (int i = 0; i < hand.Value.Cards.Count; i++)
+        for (int i = 0; i < handInfo.Value.Cards.Count; i++)
         {
-            var cardEntity = hand.Value.Cards[i];
-            var rank = _world.GetComponent<CardRankComponent>(cardEntity);
-            var suit = _world.GetComponent<CardSuitComponent>(cardEntity);
+            var cardEntity = handInfo.Value.Cards[i];
+            var rank = _run.World.GetComponent<CardRankComponent>(cardEntity);
+            var suit = _run.World.GetComponent<CardSuitComponent>(cardEntity);
             var marker = selectedSet.Contains(cardEntity) ? " [✓]" : "";
             
             if (rank.HasValue && suit.HasValue)
@@ -344,12 +322,12 @@ public class GameLoop
         }
     }
 
-    private void ShowSelectedCards(List<Entity> selectedCards)
+    private void ShowSelectedCards(IReadOnlyList<Entity> selectedCards)
     {
         foreach (var cardEntity in selectedCards)
         {
-            var rank = _world.GetComponent<CardRankComponent>(cardEntity);
-            var suit = _world.GetComponent<CardSuitComponent>(cardEntity);
+            var rank = _run.World.GetComponent<CardRankComponent>(cardEntity);
+            var suit = _run.World.GetComponent<CardSuitComponent>(cardEntity);
             if (rank.HasValue && suit.HasValue)
             {
                 Console.WriteLine($"  - {rank.Value.Rank} {suit.Value.Suit}");
@@ -357,39 +335,5 @@ public class GameLoop
         }
     }
 
-    /// <summary>
-    /// Сортирует карты в руке по возрастанию (ранг, затем масть).
-    /// </summary>
-    private void SortHand()
-    {
-        var hand = _world.GetComponent<HandComponent>(_handEntity);
-        if (!hand.HasValue || hand.Value.Cards.Count <= 1)
-            return;
-
-        var handComponent = hand.Value;
-
-        // Сортируем карты: сначала по рангу, затем по масти
-        handComponent.Cards.Sort((card1, card2) =>
-        {
-            var rank1 = _world.GetComponent<CardRankComponent>(card1);
-            var suit1 = _world.GetComponent<CardSuitComponent>(card1);
-            var rank2 = _world.GetComponent<CardRankComponent>(card2);
-            var suit2 = _world.GetComponent<CardSuitComponent>(card2);
-
-            if (!rank1.HasValue || !suit1.HasValue || !rank2.HasValue || !suit2.HasValue)
-                return 0;
-
-            // Сначала сравниваем по рангу
-            int rankComparison = rank1.Value.Rank.CompareTo(rank2.Value.Rank);
-            if (rankComparison != 0)
-                return rankComparison;
-
-            // Если ранги одинаковые - сравниваем по масти
-            return suit1.Value.Suit.CompareTo(suit2.Value.Suit);
-        });
-
-        // Обновляем компонент
-        _world.AddComponent(_handEntity, handComponent);
-    }
 }
 
