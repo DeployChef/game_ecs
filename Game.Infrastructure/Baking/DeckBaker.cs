@@ -37,6 +37,7 @@ public class DeckBaker : IBaker<DeckAuthoring>
             // 2. Добавляем компоненты
             context.AddComponent(card, new CardRankComponent(cardAuthoring.Rank));
             context.AddComponent(card, new CardSuitComponent(cardAuthoring.Suit));
+            context.AddComponent(card, new CardScoreComponent(cardAuthoring.BaseScore));
             context.AddComponent(card, new CardStateComponent(CardState.InDeck));
         }
     }

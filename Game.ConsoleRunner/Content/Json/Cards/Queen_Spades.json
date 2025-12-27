@@ -1,5 +1,6 @@
 {
   "Id": "Queen_Spades",
   "Rank": "Queen",
-  "Suit": "Spades"
+  "Suit": "Spades",
+  "BaseScore": 10
 }

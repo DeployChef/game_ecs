@@ -14,5 +14,9 @@ public class CardAuthoring
 {
     public CardRank Rank { get; set; }
     public CardSuit Suit { get; set; }
+    /// <summary>
+    /// Базовые очки карты (из контента)
+    /// </summary>
+    public int BaseScore { get; set; }
 }
 

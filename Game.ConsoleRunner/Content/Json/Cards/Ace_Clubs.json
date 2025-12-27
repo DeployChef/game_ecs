@@ -1,5 +1,6 @@
 {
   "Id": "Ace_Clubs",
   "Rank": "Ace",
-  "Suit": "Clubs"
+  "Suit": "Clubs",
+  "BaseScore": 11
 }

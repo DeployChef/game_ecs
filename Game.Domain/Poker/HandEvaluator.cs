@@ -40,47 +40,48 @@ public static class HandEvaluator
             var hand = world.GetComponent<HandComponent>(handEntity);
             if (!hand.HasValue || hand.Value.Cards.Count == 0)
             {
-                return new HandEvaluationResult(PokerHandType.HighCard, 0);
+                return new HandEvaluationResult(PokerHandType.HighCard, 5, 1);
             }
             cardsToEvaluate = hand.Value.Cards;
         }
 
         if (cardsToEvaluate.Count == 0)
         {
-            return new HandEvaluationResult(PokerHandType.HighCard, 0);
+            return new HandEvaluationResult(PokerHandType.HighCard, 5, 1);
         }
 
         var cardData = GetCardData(world, cardsToEvaluate);
 
         // Проверяем комбинации от старшей к младшей
+        // Правила Balatro: (базовые очки комбинации, множитель)
         if (IsFlushRoyal(cardData))
-            return new HandEvaluationResult(PokerHandType.FlushRoyal, 100);
+            return new HandEvaluationResult(PokerHandType.FlushRoyal, 100, 8);
         
         if (IsStraightFlush(cardData))
-            return new HandEvaluationResult(PokerHandType.StraightFlush, 75);
+            return new HandEvaluationResult(PokerHandType.StraightFlush, 100, 8);
         
         if (IsFourOfAKind(cardData))
-            return new HandEvaluationResult(PokerHandType.FourOfAKind, 50);
+            return new HandEvaluationResult(PokerHandType.FourOfAKind, 60, 7);
         
         if (IsFullHouse(cardData))
-            return new HandEvaluationResult(PokerHandType.FullHouse, 25);
+            return new HandEvaluationResult(PokerHandType.FullHouse, 40, 4);
         
         if (IsFlush(cardData))
-            return new HandEvaluationResult(PokerHandType.Flush, 20);
+            return new HandEvaluationResult(PokerHandType.Flush, 35, 4);
         
         if (IsStraight(cardData))
-            return new HandEvaluationResult(PokerHandType.Straight, 15);
+            return new HandEvaluationResult(PokerHandType.Straight, 30, 4);
         
         if (IsThreeOfAKind(cardData))
-            return new HandEvaluationResult(PokerHandType.ThreeOfAKind, 10);
+            return new HandEvaluationResult(PokerHandType.ThreeOfAKind, 30, 3);
         
         if (IsTwoPair(cardData))
-            return new HandEvaluationResult(PokerHandType.TwoPair, 5);
+            return new HandEvaluationResult(PokerHandType.TwoPair, 20, 2);
         
         if (IsPair(cardData))
-            return new HandEvaluationResult(PokerHandType.Pair, 2);
+            return new HandEvaluationResult(PokerHandType.Pair, 10, 2);
 
-        return new HandEvaluationResult(PokerHandType.HighCard, 1);
+        return new HandEvaluationResult(PokerHandType.HighCard, 5, 1);
     }
 
     private static List<(CardRank Rank, CardSuit Suit)> GetCardData(World world, List<Entity> cardEntities)

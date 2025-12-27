@@ -321,19 +321,43 @@ public class GameLoop
             ShowHand();
         }
 
-        // Оценка руки
-        var result = HandEvaluator.Evaluate(_run.World, _run.HandEntity);
-        Console.WriteLine($"\nКомбинация: {result.HandType}");
-        Console.WriteLine($"Базовые очки: {result.BaseScore}");
+        // Оценка комбинации
+        var evaluationResult = HandEvaluator.Evaluate(_run.World, _run.HandEntity);
+        
+        // Вычисляем итоговые очки по формуле Balatro: (сумма очков карт + базовые очки комбинации) * множитель
+        int totalScore = HandScoreCalculator.CalculateTotalScore(_run.World, _run.HandEntity, evaluationResult);
+        
+        // Вычисляем сумму очков карт для отображения
+        var cardsToShow = _handService.GetSelectedCards(_run.HandEntity);
+        if (cardsToShow.Count == 0)
+        {
+            var handInfo = _handService.GetHandInfo(_run.HandEntity);
+            if (handInfo.HasValue)
+            {
+                cardsToShow = handInfo.Value.Cards;
+            }
+        }
+        
+        int cardsScore = 0;
+        foreach (var cardEntity in cardsToShow)
+        {
+            cardsScore += CardScoreCalculator.GetCardScore(_run.World, cardEntity);
+        }
+        
+        Console.WriteLine($"\nКомбинация: {evaluationResult.HandType}");
+        Console.WriteLine($"Очки карт: {cardsScore}");
+        Console.WriteLine($"Базовые очки комбинации: {evaluationResult.BaseScore}");
+        Console.WriteLine($"Множитель: x{evaluationResult.Multiplier}");
+        Console.WriteLine($"Итоговые очки: {totalScore} = ({cardsScore} + {evaluationResult.BaseScore}) × {evaluationResult.Multiplier}");
 
         // Сохраняем старое состояние раунда ДО добавления очков
         var oldRoundState = _run.RoundState;
         var wasRoundCompleteBefore = oldRoundState.IsComplete;
 
-        // Добавляем очки к раунду (также увеличивает счетчик сыгранных рук)
+        // Добавляем итоговые очки к раунду (также увеличивает счетчик сыгранных рук)
         try
         {
-            _run.AddHandScore(result.BaseScore);
+            _run.AddHandScore(totalScore);
             Console.WriteLine($"\nОчки раунда: {_run.RoundState.Score}/{_run.RoundState.Goal}");
             
             // Проверяем, завершился ли раунд после добавления очков
@@ -452,7 +476,7 @@ public class GameLoop
             var suit = _run.World.GetComponent<CardSuitComponent>(cardEntity);
             if (rank.HasValue && suit.HasValue)
             {
-                Console.WriteLine($"  - {rank.Value.Rank} {suit.Value.Suit}");
+                Console.WriteLine($"  - {CardFormatter.FormatCard(rank.Value.Rank, suit.Value.Suit)}");
             }
         }
     }
@@ -478,7 +502,7 @@ public class GameLoop
             
             if (rank.HasValue && suit.HasValue)
             {
-                Console.WriteLine($"  {i + 1}. {rank.Value.Rank} {suit.Value.Suit}{marker}");
+                Console.WriteLine($"  {i + 1}. {CardFormatter.FormatCard(rank.Value.Rank, suit.Value.Suit)}{marker}");
             }
         }
     }
@@ -491,10 +515,11 @@ public class GameLoop
             var suit = _run.World.GetComponent<CardSuitComponent>(cardEntity);
             if (rank.HasValue && suit.HasValue)
             {
-                Console.WriteLine($"  - {rank.Value.Rank} {suit.Value.Suit}");
+                Console.WriteLine($"  - {CardFormatter.FormatCard(rank.Value.Rank, suit.Value.Suit)}");
             }
         }
     }
 
 }
+
 

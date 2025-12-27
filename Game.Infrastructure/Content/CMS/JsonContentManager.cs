@@ -52,7 +52,8 @@ public class JsonContentManager : IContentManager
             deckAuthoring.Cards.Add(new CardAuthoring
             {
                 Rank = ParseRank(cardData.Rank),
-                Suit = ParseSuit(cardData.Suit)
+                Suit = ParseSuit(cardData.Suit),
+                BaseScore = cardData.BaseScore
             });
         }
 
