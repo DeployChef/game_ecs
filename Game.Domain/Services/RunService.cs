@@ -1,4 +1,3 @@
-using Game.Domain.Content;
 using Game.Domain.ECS;
 using Game.Domain.ECS.Components;
 using Game.Domain.GameState;
@@ -16,6 +15,7 @@ namespace Game.Domain.Services;
 /// 
 /// Примечание: Baking (конвертация данных в Entity) происходит в инфраструктуре,
 /// перед вызовом CreateRun. RunService работает только с готовым World.
+/// RNG создается в инфраструктуре и передается через параметр.
 /// </summary>
 public interface IRunService
 {
@@ -24,32 +24,32 @@ public interface IRunService
     /// </summary>
     /// <param name="deckId">ID колоды</param>
     /// <param name="world">World с уже загруженными Entity карт (после Baking)</param>
-    /// <param name="seed">Seed для RNG (опционально, для воспроизводимости)</param>
+    /// <param name="rng">Генератор случайных чисел (создается в инфраструктуре)</param>
+    /// <param name="seed">Seed для RNG (опционально, для логирования)</param>
     /// <returns>Инициализированный ран</returns>
-    Game.Domain.Run.Run CreateRun(string deckId, World world, int? seed = null);
+    Game.Domain.Run.Run CreateRun(string deckId, World world, IRandomNumberGenerator rng, int? seed = null);
 }
 
 public class RunService : IRunService
 {
-    public Game.Domain.Run.Run CreateRun(string deckId, World world, int? seed = null)
+    public Game.Domain.Run.Run CreateRun(string deckId, World world, IRandomNumberGenerator rng, int? seed = null)
     {
         if (string.IsNullOrWhiteSpace(deckId))
             throw new ArgumentException("DeckId cannot be null or empty", nameof(deckId));
         if (world == null)
             throw new ArgumentNullException(nameof(world));
+        if (rng == null)
+            throw new ArgumentNullException(nameof(rng));
         
         // 1. Создаем руку
         var handEntity = world.CreateEntity();
         world.AddComponent(handEntity, new HandComponent(maxHandSize: 8));
         
-        // 2. Создаем RNG
-        var actualSeed = seed ?? Environment.TickCount;
-        var rng = new SeededRandomNumberGenerator(actualSeed);
-        
-        // 3. Создаем StateMachine
+        // 2. Создаем StateMachine
         var stateMachine = new GameStateMachine(world, handEntity);
         
-        // 4. Создаем Run
+        // 3. Создаем Run
+        var actualSeed = seed ?? 0; // Seed для логирования, если не передан
         return new Game.Domain.Run.Run(world, handEntity, stateMachine, deckId, actualSeed, rng);
     }
 }

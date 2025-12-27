@@ -48,8 +48,12 @@ class Program
         bakingSystem.Bake(deckAuthoring);
         Console.WriteLine("Baking завершен - Entity созданы в World\n");
         
-        // 7. Создаем ран через UseCase (Application)
-        var run = startRunUseCase.Execute(deckId, world);
+        // 7. Создаем RNG (инфраструктура)
+        int seed = 12345; // Фиксированный seed для воспроизводимости
+        var rng = new SeededRandomNumberGenerator(seed);
+        
+        // 8. Создаем ран через UseCase (Application)
+        var run = startRunUseCase.Execute(deckId, world, rng, seed);
         Console.WriteLine($"Ран создан (seed: {run.Seed})\n");
         
         // 8. Запускаем игровой цикл (презентация)
