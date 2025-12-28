@@ -112,6 +112,12 @@ public sealed class HandService : IHandService
         return selected.Value.SelectedCards;
     }
     
+    /// <inheritdoc />
+    public int ReturnAllCardsToDeck()
+    {
+        return _discardSystem.ReturnAllCardsToDeck(_world);
+    }
+    
     /// <summary>
     /// Валидирует, что Entity является рукой (имеет HandComponent).
     /// </summary>

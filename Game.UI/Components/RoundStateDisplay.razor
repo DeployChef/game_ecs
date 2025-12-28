@@ -17,7 +17,14 @@
                 <span class="remaining">Осталось: @RoundState.Remaining</span>
             </div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width: @(GetProgressPercentage())%"></div>
+                @{
+                    var progressPercent = GetProgressPercentage();
+                    var widthPercent = progressPercent.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+                }
+                <div class="progress-fill" data-width="@widthPercent" style="width: @widthPercent% !important;"></div>
+            </div>
+            <div style="font-size: 0.75rem; color: #888; margin-top: 0.25rem; text-align: center;">
+                Прогресс: @(progressPercent.ToString("F1"))% (@RoundState.Score из @RoundState.Goal)
             </div>
         </div>
         
@@ -40,13 +47,29 @@
     
     private double GetProgressPercentage()
     {
-        if (RoundState == null || RoundState.Goal == 0)
+        if (RoundState == null)
             return 0;
         
-        // Вычисляем процент без ограничения, но визуально ограничиваем до 100%
+        // Защита от деления на ноль
+        if (RoundState.Goal <= 0)
+            return 0;
+        
+        // Вычисляем процент: (Score / Goal) * 100
+        // Явно приводим к double для правильного деления
+        double score = (double)RoundState.Score;
+        double goal = (double)RoundState.Goal;
+        
+        // Проверяем на валидность данных
+        if (double.IsNaN(score) || double.IsNaN(goal) || double.IsInfinity(score) || double.IsInfinity(goal))
+            return 0;
+        
+        double percentage = (score / goal) * 100.0;
+        
+        // Ограничиваем до 100% для визуального отображения
         // Если очков больше цели, показываем 100%
-        double percentage = (RoundState.Score / (double)RoundState.Goal) * 100;
-        return Math.Min(100, percentage);
+        double result = Math.Min(100.0, Math.Max(0.0, percentage));
+        
+        return result;
     }
 }
 

@@ -6,31 +6,18 @@
 
 <PageTitle>Игра</PageTitle>
 
-@if (!GameSession.IsGameActive)
+@{
+    var gameState = GameSession.GetGameState();
+}
+
+@if (gameState == null)
 {
     <div class="game-inactive">
         <p>Игра не активна. <a href="/">Вернуться к выбору колоды</a></p>
-        @{
-            var debugState = GameSession.GetGameState();
-        }
-        @if (debugState != null)
-        {
-            <p style="font-size: 0.9rem; color: #b0b0b0;">
-                Debug: RunState = @debugState.RunState, CurrentState = @debugState.CurrentState
-            </p>
-        }
-        else
-        {
-            <p style="font-size: 0.9rem; color: #b0b0b0;">
-                Debug: GameState is null
-            </p>
-        }
     </div>
 }
 else
 {
-    var gameState = GameSession.GetGameState();
-    
     @if (gameState != null)
     {
         <div class="game-board">
@@ -114,8 +101,23 @@ else
                         if (gameState.CurrentState == GameStateType.HandComplete && !_showResult)
                         {
                             GameSession.HandleHandComplete();
+                            
+                            // Проверяем состояние после обработки - возможно игра проиграна
+                            var stateAfterComplete = GameSession.GetGameState();
+                            if (stateAfterComplete?.RunState != RunState.Playing)
+                            {
+                                // Игра завершена - обновляем UI
+                                StateHasChanged();
+                                return;
+                            }
+                            
                             StateHasChanged();
                         }
+                    }
+                    else
+                    {
+                        // Игра завершена - обновляем UI для отображения экрана проигрыша/победы
+                        StateHasChanged();
                     }
                 }
             });
@@ -168,11 +170,23 @@ else
             _showResult = true;
             StateHasChanged();
             
+            // Немедленно проверяем состояние после игры руки
+            var gameStateAfterPlay = GameSession.GetGameState();
+            if (gameStateAfterPlay?.RunState == RunState.Lost)
+            {
+                // Игра проиграна - сразу показываем экран проигрыша
+                _showResult = false;
+                _lastHandResult = null;
+                StateHasChanged();
+                return;
+            }
+            
             // Через задержку обрабатываем HandComplete
             await Task.Delay(2500);
             
-            // Проверяем, что игра еще активна перед обработкой
-            if (GameSession.IsGameActive)
+            // Проверяем состояние еще раз перед обработкой
+            var gameStateBeforeComplete = GameSession.GetGameState();
+            if (gameStateBeforeComplete?.RunState == RunState.Playing)
             {
                 GameSession.HandleHandComplete();
             }
@@ -191,6 +205,15 @@ else
         bool success = GameSession.DiscardSelectedCards();
         if (success)
         {
+            // Немедленно проверяем состояние после сброса
+            var gameStateAfterDiscard = GameSession.GetGameState();
+            if (gameStateAfterDiscard?.RunState == RunState.Lost)
+            {
+                // Игра проиграна - показываем экран проигрыша
+                StateHasChanged();
+                return;
+            }
+            
             StateHasChanged();
         }
     }

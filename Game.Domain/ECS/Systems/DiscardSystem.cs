@@ -83,6 +83,37 @@ public class DiscardSystem : ISystem
     }
 
     /// <summary>
+    /// Возвращает все сброшенные карты обратно в колоду.
+    /// Используется при переходе к новому раунду.
+    /// </summary>
+    public int ReturnAllCardsToDeck(World world)
+    {
+        // Находим все карты с состоянием Discarded или InHand
+        var cardsToReturn = world.GetEntitiesWith<CardStateComponent>()
+            .Where(e =>
+            {
+                var state = world.GetComponent<CardStateComponent>(e);
+                return state.HasValue && (state.Value.State == CardState.Discarded || state.Value.State == CardState.InHand);
+            })
+            .ToList();
+
+        int returned = 0;
+        foreach (var cardEntity in cardsToReturn)
+        {
+            var cardState = world.GetComponent<CardStateComponent>(cardEntity);
+            if (cardState.HasValue)
+            {
+                var newState = cardState.Value;
+                newState.State = CardState.InDeck;
+                world.AddComponent(cardEntity, newState);
+                returned++;
+            }
+        }
+
+        return returned;
+    }
+
+    /// <summary>
     /// Update не используется - сброс вызывается явно.
     /// </summary>
     public void Update(World world)

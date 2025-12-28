@@ -471,9 +471,16 @@ public class GameLoop
             Console.WriteLine("\n--- Переход к новому раунду ---");
             Console.WriteLine($"Текущий раунд: {_run.RoundState.Ante} - {_run.RoundState.Round}");
             
-            // Сбрасываем всю руку
+            // Возвращаем все карты в колоду
+            int returned = _handService.ReturnAllCardsToDeck();
+            Console.WriteLine($"Возвращено карт в колоду: {returned}");
+            
+            // Сбрасываем всю руку (очищаем HandComponent)
             _handService.DiscardHand(_run.HandEntity);
             Console.WriteLine("Рука сброшена");
+            
+            // Очищаем выбор карт
+            _handService.ClearSelection(_run.HandEntity);
             
             // Берем новую руку до максимума
             var handInfo = _handService.GetHandInfo(_run.HandEntity);

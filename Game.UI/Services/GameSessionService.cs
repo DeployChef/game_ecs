@@ -165,13 +165,28 @@ public class GameSessionService : IGameSessionService
         try
         {
             _currentRun.AddHandScore(totalScore);
+            
+            // Проверяем состояние после добавления очков
+            // AddHandScore может вызвать CheckGameOver и изменить State на Lost
+            if (_currentRun.State != RunState.Playing)
+            {
+                // Игра завершена (проигрыш или победа) - не переходим в HandComplete
+                return new HandResultViewModel
+                {
+                    HandType = evaluationResult.HandType.ToString(),
+                    CardsScore = cardsScore,
+                    BaseScore = evaluationResult.BaseScore,
+                    Multiplier = evaluationResult.Multiplier,
+                    TotalScore = totalScore
+                };
+            }
         }
         catch (InvalidOperationException)
         {
             return null;
         }
         
-        // Переходим в состояние HandComplete
+        // Переходим в состояние HandComplete только если игра продолжается
         _currentRun.StateMachine.HandCompleted();
         
         return new HandResultViewModel
@@ -233,9 +248,10 @@ public class GameSessionService : IGameSessionService
             _handService.SortHand(_currentRun.HandEntity);
         }
         
-        // Проверяем конец игры
+        // Проверяем конец игры после сброса
         _currentRun.CheckGameOver();
         
+        // Если игра проиграна, возвращаем true, но состояние уже Lost
         return true;
     }
     
@@ -348,7 +364,7 @@ public class GameSessionService : IGameSessionService
         if (_currentRun.StateMachine.CurrentState != GameStateType.HandComplete)
             return;
         
-        // Проверяем конец игры
+        // Проверяем конец игры - если игра уже проиграна, не обрабатываем дальше
         if (_currentRun.State != RunState.Playing)
         {
             _currentRun.StateMachine.EndTurn();
@@ -361,8 +377,14 @@ public class GameSessionService : IGameSessionService
         
         if (isNewRound)
         {
-            // Новый раунд - сбрасываем всю руку
+            // Новый раунд - возвращаем все карты в колоду
+            _handService.ReturnAllCardsToDeck();
+            
+            // Сбрасываем всю руку (очищаем HandComponent)
             _handService.DiscardHand(_currentRun.HandEntity);
+            
+            // Очищаем выбор карт
+            _handService.ClearSelection(_currentRun.HandEntity);
             
             // Берем новую руку до максимума
             var handInfo = _handService.GetHandInfo(_currentRun.HandEntity);

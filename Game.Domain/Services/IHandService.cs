@@ -67,5 +67,12 @@ public interface IHandService
     /// <param name="handEntity">Entity руки</param>
     /// <returns>Список Entity выбранных карт или пустой список</returns>
     IReadOnlyList<Entity> GetSelectedCards(Entity handEntity);
+    
+    /// <summary>
+    /// Возвращает все сброшенные и использованные карты обратно в колоду.
+    /// Используется при переходе к новому раунду.
+    /// </summary>
+    /// <returns>Количество карт, возвращенных в колоду</returns>
+    int ReturnAllCardsToDeck();
 }
 
