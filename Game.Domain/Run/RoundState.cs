@@ -61,12 +61,12 @@ public readonly struct RoundState : IEquatable<RoundState>
     /// <summary>
     /// Максимальное количество рук для игры за раунд
     /// </summary>
-    public const int MaxHandsToPlay = 5;
+    public const int MaxHandsToPlay = 3;
     
     /// <summary>
     /// Максимальное количество рук для сброса за раунд
     /// </summary>
-    public const int MaxHandsToDiscard = 5;
+    public const int MaxHandsToDiscard = 3;
     
     /// <summary>
     /// Можно ли сыграть еще руку (не превышен лимит)

@@ -30,7 +30,8 @@ public class DeckContentLoaderAdapter : IDeckContentLoader
             deckData.Cards.Add(new CardContentData
             {
                 Rank = cardAuthoring.Rank,
-                Suit = cardAuthoring.Suit
+                Suit = cardAuthoring.Suit,
+                BaseScore = cardAuthoring.BaseScore
             });
         }
         

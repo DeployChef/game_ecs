@@ -50,11 +50,11 @@ public static class CardFormatter
     }
     
     /// <summary>
-    /// Форматирует карту для вывода (ранг + масть).
+    /// Форматирует карту для вывода (ранг + табуляция + масть).
     /// </summary>
     public static string FormatCard(CardRank rank, CardSuit suit)
     {
-        return $"{FormatRank(rank)}{FormatSuit(suit)}";
+        return $"{FormatRank(rank)}\t{FormatSuit(suit)}";
     }
 }
 

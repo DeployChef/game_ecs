@@ -126,6 +126,10 @@ public static class HandEvaluator
 
     private static bool IsFlush(List<(CardRank Rank, CardSuit Suit)> cards)
     {
+        // Флеш - это минимум 5 карт одной масти
+        if (cards.Count < 5)
+            return false;
+        
         return cards.Select(c => c.Suit).Distinct().Count() == 1;
     }
 
@@ -154,12 +158,20 @@ public static class HandEvaluator
 
     private static bool IsThreeOfAKind(List<(CardRank Rank, CardSuit Suit)> cards)
     {
+        // Тройка - это минимум 3 карты одного ранга
+        if (cards.Count < 3)
+            return false;
+        
         var ranks = cards.Select(c => c.Rank).ToList();
         return ranks.GroupBy(r => r).Any(g => g.Count() >= 3);
     }
 
     private static bool IsTwoPair(List<(CardRank Rank, CardSuit Suit)> cards)
     {
+        // Две пары - это минимум 4 карты (2 пары)
+        if (cards.Count < 4)
+            return false;
+        
         var ranks = cards.Select(c => c.Rank).ToList();
         var pairs = ranks.GroupBy(r => r).Where(g => g.Count() >= 2).Count();
         return pairs >= 2;
@@ -167,6 +179,10 @@ public static class HandEvaluator
 
     private static bool IsPair(List<(CardRank Rank, CardSuit Suit)> cards)
     {
+        // Пара - это минимум 2 карты одного ранга
+        if (cards.Count < 2)
+            return false;
+        
         var ranks = cards.Select(c => c.Rank).ToList();
         return ranks.GroupBy(r => r).Any(g => g.Count() >= 2);
     }

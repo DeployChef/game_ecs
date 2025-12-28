@@ -33,6 +33,7 @@ public class GameLoop
         ShowRoundState();
 
         // Игровой цикл
+        // Завершаем цикл если: state machine в EndTurn ИЛИ игра не в состоянии Playing (проигрыш/победа)
         while (_run.StateMachine.CurrentState != GameStateType.EndTurn && _run.State == Game.Domain.Run.RunState.Playing)
         {
             switch (_run.StateMachine.CurrentState)
@@ -50,6 +51,13 @@ public class GameLoop
                     HandleHandComplete();
                     break;
             }
+            
+            // Дополнительная проверка после обработки состояния
+            // Если игра завершена (проигрыш/победа), выходим из цикла
+            if (_run.State != Game.Domain.Run.RunState.Playing)
+            {
+                break;
+            }
         }
 
         // Проверка конца игры
@@ -58,11 +66,15 @@ public class GameLoop
             Console.WriteLine("\n=== ВЫ ПРОИГРАЛИ ===");
             Console.WriteLine($"Не удалось достичь цели в {_run.RoundState.Ante} - {_run.RoundState.Round}");
             Console.WriteLine($"Набрано очков: {_run.RoundState.Score}/{_run.RoundState.Goal}");
+            Console.WriteLine("\nНажмите любую клавишу для возврата в меню...");
+            Console.ReadKey();
         }
         else if (_run.State == Game.Domain.Run.RunState.Won)
         {
             Console.WriteLine("\n=== ВЫ ВЫИГРАЛИ ===");
             Console.WriteLine($"Поздравляем! Вы прошли все анте!");
+            Console.WriteLine("\nНажмите любую клавишу для возврата в меню...");
+            Console.ReadKey();
         }
         else
         {
@@ -80,6 +92,19 @@ public class GameLoop
             Console.WriteLine("✓ Раунд завершен! Переход к следующему...");
         }
     }
+    
+    /// <summary>
+    /// Подсчитывает количество карт в колоде (состояние InDeck).
+    /// </summary>
+    private int CountCardsInDeck()
+    {
+        return _run.World.GetEntitiesWith<CardStateComponent>()
+            .Count(e =>
+            {
+                var state = _run.World.GetComponent<CardStateComponent>(e);
+                return state.HasValue && state.Value.State == CardState.InDeck;
+            });
+    }
 
     private void HandleDrawingHand()
     {
@@ -94,38 +119,61 @@ public class GameLoop
             return;
         }
         
+        // Подсчитываем оставшиеся карты в колоде ДО взятия
+        int cardsInDeck = CountCardsInDeck();
+        
         int cardsToDraw = handInfo.Value.AvailableSlots;
         int drawn = _handService.DrawCards(_run.HandEntity, cardsToDraw, _run.Rng);
-        Console.WriteLine($"Взято карт: {drawn} (максимум в руке: {handInfo.Value.MaxHandSize})");
+        
+        // Подсчитываем оставшиеся карты в колоде ПОСЛЕ взятия
+        int cardsInDeckAfter = CountCardsInDeck();
+        
+        Console.WriteLine($"Взято карт: {drawn} | Карт в колоде: {cardsInDeckAfter}");
 
         if (drawn > 0)
         {
             // Сортируем руку после взятия карт
             _handService.SortHand(_run.HandEntity);
-            ShowHand();
             _run.StateMachine.CardsDrawn();
         }
         else
         {
-            // Нет карт для взятия - проверяем, есть ли карты в руке
-            var currentHandInfo = _handService.GetHandInfo(_run.HandEntity);
-            if (currentHandInfo.HasValue && currentHandInfo.Value.Cards.Count > 0)
+            // Не взяли карты - проверяем причину
+            if (cardsInDeckAfter == 0)
             {
-                // В руке есть карты - можно продолжать играть
-                Console.WriteLine("Колода пуста, но в руке есть карты. Продолжаем с текущими картами.");
-                _run.StateMachine.CardsDrawn();
+                // Колода действительно пуста
+                var currentHandInfo = _handService.GetHandInfo(_run.HandEntity);
+                if (currentHandInfo.HasValue && currentHandInfo.Value.Cards.Count > 0)
+                {
+                    // В руке есть карты - можно продолжать играть
+                    Console.WriteLine("Колода пуста, но в руке есть карты. Продолжаем с текущими картами.");
+                    _run.StateMachine.CardsDrawn();
+                }
+                else
+                {
+                    // Колода пуста и рука пуста - конец игры (проигрыш)
+                    Console.WriteLine("Колода пуста и рука пуста. Игра завершена.");
+                    _run.Lose();
+                }
             }
             else
             {
-                // Колода пуста и рука пуста - конец игры (проигрыш)
-                Console.WriteLine("Колода пуста и рука пуста. Игра завершена.");
-                _run.Lose();
+                // Колода не пуста, но не взяли карты - значит рука полная
+                // Это нормальная ситуация, просто переходим к выбору карт
+                _run.StateMachine.CardsDrawn();
             }
         }
     }
 
     private void HandleSelectingCards()
     {
+        // Проверяем, не завершена ли игра
+        if (_run.State != Game.Domain.Run.RunState.Playing)
+        {
+            // Игра уже завершена, не ждем ввода
+            return;
+        }
+        
         Console.WriteLine("\n--- Управление картами ---");
         Console.WriteLine("Команды:");
         Console.WriteLine("  - Номера карт (например: 1 3 5) - выбрать/снять выбор с карт (toggle, максимум 5)");
@@ -153,6 +201,16 @@ public class GameLoop
             {
                 Console.WriteLine($"Достигнут лимит сброса рук! Можно сбросить максимум {RoundState.MaxHandsToDiscard} рук за раунд.");
                 Console.WriteLine($"Уже сброшено: {_run.RoundState.HandsDiscarded}");
+                
+                // Проверяем проигрыш: если не можем играть, не можем сбрасывать и не достигли цели
+                _run.CheckGameOver();
+                if (_run.State != Game.Domain.Run.RunState.Playing)
+                {
+                    Console.WriteLine("\n⚠ Нет доступных действий! Вы не можете больше играть или сбрасывать руки.");
+                    Console.WriteLine("Игра завершена.");
+                    // Состояние игры уже Lost, главный цикл завершится при следующей проверке
+                    return;
+                }
                 return;
             }
             
@@ -230,6 +288,16 @@ public class GameLoop
             {
                 Console.WriteLine($"Достигнут лимит игры рук! Можно сыграть максимум {RoundState.MaxHandsToPlay} рук за раунд.");
                 Console.WriteLine($"Уже сыграно: {_run.RoundState.HandsPlayed}");
+                
+                // Проверяем проигрыш: если не можем играть, не можем сбрасывать и не достигли цели
+                _run.CheckGameOver();
+                if (_run.State != Game.Domain.Run.RunState.Playing)
+                {
+                    Console.WriteLine("\n⚠ Нет доступных действий! Вы не можете больше играть или сбрасывать руки.");
+                    Console.WriteLine("Игра завершена.");
+                    // Состояние игры уже Lost, главный цикл завершится при следующей проверке
+                    return;
+                }
                 return;
             }
             
@@ -341,7 +409,16 @@ public class GameLoop
         int cardsScore = 0;
         foreach (var cardEntity in cardsToShow)
         {
-            cardsScore += CardScoreCalculator.GetCardScore(_run.World, cardEntity);
+            var cardScore = CardScoreCalculator.GetCardScore(_run.World, cardEntity);
+            cardsScore += cardScore;
+            
+            // Отладка: проверяем наличие компонента
+            var scoreComponent = _run.World.GetComponent<CardScoreComponent>(cardEntity);
+            var rank = _run.World.GetComponent<CardRankComponent>(cardEntity);
+            if (!scoreComponent.HasValue && rank.HasValue)
+            {
+                Console.WriteLine($"⚠ ОШИБКА: У карты {rank.Value.Rank} отсутствует CardScoreComponent! Очки = 0");
+            }
         }
         
         Console.WriteLine($"\nКомбинация: {evaluationResult.HandType}");
@@ -448,6 +525,15 @@ public class GameLoop
 
         ShowRoundState();
 
+        // Проверяем проигрыш после завершения руки
+        _run.CheckGameOver();
+        if (_run.State != Game.Domain.Run.RunState.Playing)
+        {
+            // Игра завершена (проигрыш)
+            _run.StateMachine.EndTurn();
+            return;
+        }
+
         // Проверяем, можем ли продолжать играть
         if (!_run.RoundState.CanPlayHand && !_run.RoundState.CanDiscardHand && !_run.RoundState.IsComplete)
         {
@@ -521,5 +607,14 @@ public class GameLoop
     }
 
 }
+
+
+
+
+
+
+
+
+
 
 
