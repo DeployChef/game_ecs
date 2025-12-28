@@ -1,0 +1,32 @@
+@using Game.UI.Services
+
+<div class="hand-container">
+    @if (HandInfo?.Cards != null && HandInfo.Cards.Count > 0)
+    {
+        @foreach (var card in HandInfo.Cards)
+        {
+            <Card CardData="card" OnCardClick="HandleCardClick" />
+        }
+    }
+    else
+    {
+        <div class="hand-empty">Рука пуста</div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public HandInfoViewModel? HandInfo { get; set; }
+    
+    [Parameter]
+    public EventCallback<CardViewModel> OnCardClick { get; set; }
+    
+    private async Task HandleCardClick(CardViewModel card)
+    {
+        if (OnCardClick.HasDelegate)
+        {
+            await OnCardClick.InvokeAsync(card);
+        }
+    }
+}
+

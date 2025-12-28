@@ -1,0 +1,81 @@
+@page "/"
+@rendermode InteractiveServer
+@inject IGameSessionService GameSession
+@inject NavigationManager Navigation
+
+<PageTitle>Выбор колоды</PageTitle>
+
+<div class="deck-selection">
+    <h1>Выберите колоду</h1>
+    
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="error-message" style="color: #dc2626; padding: 1rem; background: rgba(220, 38, 38, 0.1); border-radius: 8px; margin-bottom: 1rem;">
+            Ошибка: @_errorMessage
+        </div>
+    }
+    
+    <div class="deck-list">
+        <div class="deck-item" @onclick="StartGame" @onclick:preventDefault>
+            <div class="deck-name">Standard Deck</div>
+            <div class="deck-description">Стандартная колода из 52 карт</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _errorMessage = string.Empty;
+    
+    private async Task StartGame()
+    {
+        _errorMessage = string.Empty;
+        StateHasChanged();
+        
+        try
+        {
+            Console.WriteLine("Начинаем создание игры...");
+            bool success = GameSession.StartNewGame("standard_deck");
+            Console.WriteLine($"StartNewGame вернул: {success}");
+            Console.WriteLine($"IsGameActive после создания: {GameSession.IsGameActive}");
+            
+            if (success)
+            {
+                // Даем немного времени на инициализацию
+                await Task.Delay(100);
+                
+                // Проверяем, что игра действительно активна
+                if (GameSession.IsGameActive)
+                {
+                    Console.WriteLine("Игра активна, переходим на /game");
+                    // Не используем forceLoad, чтобы сохранить SignalR соединение и состояние
+                    Navigation.NavigateTo("/game");
+                }
+                else
+                {
+                    var gameState = GameSession.GetGameState();
+                    var debugInfo = gameState != null 
+                        ? $"RunState={gameState.RunState}, CurrentState={gameState.CurrentState}" 
+                        : "GameState is null";
+                    _errorMessage = $"Игра создана, но не активна. {debugInfo}. Проверьте консоль сервера.";
+                    StateHasChanged();
+                }
+            }
+            else
+            {
+                _errorMessage = "Не удалось начать игру. Проверьте консоль сервера для деталей ошибки.";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Ошибка при запуске игры: {ex.Message}";
+            if (ex.InnerException != null)
+            {
+                _errorMessage += $" ({ex.InnerException.Message})";
+            }
+            Console.WriteLine($"Exception в StartGame: {ex}");
+            StateHasChanged();
+        }
+    }
+}
+

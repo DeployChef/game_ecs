@@ -1,0 +1,52 @@
+@using Game.UI.Services
+
+@if (RoundState != null)
+{
+    <div class="round-state">
+        <div class="round-header">
+            <h2>Ante @RoundState.Ante - Round @RoundState.Round</h2>
+            @if (RoundState.IsComplete)
+            {
+                <span class="round-complete">✓ Раунд завершен!</span>
+            }
+        </div>
+        
+        <div class="score-progress">
+            <div class="score-info">
+                <span>Очки: @RoundState.Score / @RoundState.Goal</span>
+                <span class="remaining">Осталось: @RoundState.Remaining</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: @(GetProgressPercentage())%"></div>
+            </div>
+        </div>
+        
+        <div class="round-stats">
+            <div class="stat">
+                <span class="stat-label">Сыграно рук:</span>
+                <span class="stat-value">@RoundState.HandsPlayed / @RoundState.MaxHandsToPlay</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Сброшено рук:</span>
+                <span class="stat-value">@RoundState.HandsDiscarded / @RoundState.MaxHandsToDiscard</span>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public RoundStateViewModel? RoundState { get; set; }
+    
+    private double GetProgressPercentage()
+    {
+        if (RoundState == null || RoundState.Goal == 0)
+            return 0;
+        
+        // Вычисляем процент без ограничения, но визуально ограничиваем до 100%
+        // Если очков больше цели, показываем 100%
+        double percentage = (RoundState.Score / (double)RoundState.Goal) * 100;
+        return Math.Min(100, percentage);
+    }
+}
+

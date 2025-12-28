@@ -1,0 +1,40 @@
+@using Game.UI.Services
+
+@if (Result != null)
+{
+    <div class="hand-result @(IsVisible ? "visible" : "")">
+        <div class="result-header">
+            <h3>Комбинация: @Result.HandType</h3>
+        </div>
+        <div class="result-breakdown">
+            <div class="breakdown-item">
+                <span>Очки карт:</span>
+                <span>@Result.CardsScore</span>
+            </div>
+            <div class="breakdown-item">
+                <span>Базовые очки комбинации:</span>
+                <span>@Result.BaseScore</span>
+            </div>
+            <div class="breakdown-item">
+                <span>Множитель:</span>
+                <span>x@Result.Multiplier</span>
+            </div>
+            <div class="breakdown-total">
+                <span>Итоговые очки:</span>
+                <span class="total-score">@Result.TotalScore</span>
+            </div>
+            <div class="breakdown-formula">
+                (@Result.CardsScore + @Result.BaseScore) × @Result.Multiplier = @Result.TotalScore
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public HandResultViewModel? Result { get; set; }
+    
+    [Parameter]
+    public bool IsVisible { get; set; } = true;
+}
+

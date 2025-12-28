@@ -1,0 +1,218 @@
+@page "/game"
+@rendermode InteractiveServer
+@inject IGameSessionService GameSession
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>Игра</PageTitle>
+
+@if (!GameSession.IsGameActive)
+{
+    <div class="game-inactive">
+        <p>Игра не активна. <a href="/">Вернуться к выбору колоды</a></p>
+        @{
+            var debugState = GameSession.GetGameState();
+        }
+        @if (debugState != null)
+        {
+            <p style="font-size: 0.9rem; color: #b0b0b0;">
+                Debug: RunState = @debugState.RunState, CurrentState = @debugState.CurrentState
+            </p>
+        }
+        else
+        {
+            <p style="font-size: 0.9rem; color: #b0b0b0;">
+                Debug: GameState is null
+            </p>
+        }
+    </div>
+}
+else
+{
+    var gameState = GameSession.GetGameState();
+    
+    @if (gameState != null)
+    {
+        <div class="game-board">
+            @if (gameState.RunState == RunState.Lost || gameState.RunState == RunState.Won)
+            {
+                <div class="game-over-overlay">
+                    @if (gameState.RunState == RunState.Lost)
+                    {
+                        <div class="game-over lost">
+                            <h2>ВЫ ПРОИГРАЛИ</h2>
+                            <p>Не удалось достичь цели в @gameState.RoundState?.Ante - @gameState.RoundState?.Round</p>
+                            <p>Набрано очков: @gameState.RoundState?.Score / @gameState.RoundState?.Goal</p>
+                            <button class="btn btn-primary" @onclick="ReturnToMenu">Вернуться в меню</button>
+                        </div>
+                    }
+                    else if (gameState.RunState == RunState.Won)
+                    {
+                        <div class="game-over won">
+                            <h2>ВЫ ВЫИГРАЛИ</h2>
+                            <p>Поздравляем! Вы прошли все анте!</p>
+                            <button class="btn btn-primary" @onclick="ReturnToMenu">Вернуться в меню</button>
+                        </div>
+                    }
+                </div>
+            }
+            
+            <RoundStateDisplay RoundState="gameState.RoundState" />
+            
+            @if (gameState.CurrentState == GameStateType.PlayingHand && _lastHandResult != null)
+            {
+                <HandResult Result="_lastHandResult" IsVisible="_showResult" />
+            }
+            
+            <div class="hand-section">
+                <h3>Ваша рука</h3>
+                <Hand HandInfo="gameState.HandInfo" OnCardClick="HandleCardClick" />
+            </div>
+            
+            @if (gameState.CurrentState == GameStateType.SelectingCards && gameState.RunState == RunState.Playing)
+            {
+                <div class="action-buttons">
+                    <button class="btn btn-primary" 
+                            @onclick="PlayHand" 
+                            disabled="@(!gameState.RoundState?.CanPlayHand ?? true || gameState.SelectedCards.Count == 0)">
+                        Играть (@gameState.SelectedCards.Count карт)
+                    </button>
+                    <button class="btn btn-secondary" 
+                            @onclick="DiscardHand" 
+                            disabled="@(!gameState.RoundState?.CanDiscardHand ?? true || gameState.SelectedCards.Count == 0)">
+                        Сбросить (@gameState.SelectedCards.Count карт)
+                    </button>
+                    @if (gameState.SelectedCards.Count > 0)
+                    {
+                        <button class="btn btn-outline" @onclick="ClearSelection">Очистить выбор</button>
+                    }
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private HandResultViewModel? _lastHandResult;
+    private bool _showResult = false;
+    private System.Threading.Timer? _stateCheckTimer;
+    
+    protected override void OnInitialized()
+    {
+        // Периодически проверяем состояние игры для автоматических переходов
+        _stateCheckTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(() =>
+            {
+                var gameState = GameSession.GetGameState();
+                if (gameState != null)
+                {
+                    // Не обрабатываем автоматические переходы, если игра завершена
+                    if (gameState.RunState == RunState.Playing)
+                    {
+                        // Автоматически обрабатываем HandComplete
+                        if (gameState.CurrentState == GameStateType.HandComplete && !_showResult)
+                        {
+                            GameSession.HandleHandComplete();
+                            StateHasChanged();
+                        }
+                    }
+                }
+            });
+        }, null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
+    }
+    
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Проверяем начальное состояние
+            var gameState = GameSession.GetGameState();
+            if (gameState?.CurrentState == GameStateType.DrawingHand)
+            {
+                // DrawingHand обрабатывается автоматически в GameSessionService
+                StateHasChanged();
+            }
+        }
+    }
+    
+    public void Dispose()
+    {
+        _stateCheckTimer?.Dispose();
+    }
+    
+    private async Task HandleCardClick(CardViewModel card)
+    {
+        // Не позволяем выбирать карты, если игра завершена
+        if (!GameSession.IsGameActive)
+            return;
+            
+        var gameState = GameSession.GetGameState();
+        if (gameState?.CurrentState == GameStateType.SelectingCards && gameState.RunState == RunState.Playing)
+        {
+            GameSession.ToggleCardSelection(card.Entity);
+            StateHasChanged();
+        }
+    }
+    
+    private async Task PlayHand()
+    {
+        // Проверяем, что игра еще активна
+        if (!GameSession.IsGameActive)
+            return;
+            
+        var result = GameSession.PlaySelectedCards();
+        if (result != null)
+        {
+            _lastHandResult = result;
+            _showResult = true;
+            StateHasChanged();
+            
+            // Через задержку обрабатываем HandComplete
+            await Task.Delay(2500);
+            
+            // Проверяем, что игра еще активна перед обработкой
+            if (GameSession.IsGameActive)
+            {
+                GameSession.HandleHandComplete();
+            }
+            _showResult = false;
+            _lastHandResult = null;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task DiscardHand()
+    {
+        // Проверяем, что игра еще активна
+        if (!GameSession.IsGameActive)
+            return;
+            
+        bool success = GameSession.DiscardSelectedCards();
+        if (success)
+        {
+            StateHasChanged();
+        }
+    }
+    
+    private void ClearSelection()
+    {
+        var gameState = GameSession.GetGameState();
+        if (gameState?.SelectedCards != null && gameState.SelectedCards.Count > 0)
+        {
+            // Снимаем выбор со всех карт
+            var selectedCopy = gameState.SelectedCards.ToList();
+            foreach (var cardEntity in selectedCopy)
+            {
+                GameSession.ToggleCardSelection(cardEntity);
+            }
+            StateHasChanged();
+        }
+    }
+    
+    private void ReturnToMenu()
+    {
+        Navigation.NavigateTo("/");
+    }
+}
+

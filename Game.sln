@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Game.Application", "Game.Ap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Game.Infrastructure", "Game.Infrastructure\Game.Infrastructure.csproj", "{CC6823D9-CA2C-453C-A5DA-07540BC67208}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Game.UI", "Game.UI\Game.UI.csproj", "{17996421-BD76-48C2-9994-58B76BD29E39}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{CC6823D9-CA2C-453C-A5DA-07540BC67208}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CC6823D9-CA2C-453C-A5DA-07540BC67208}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CC6823D9-CA2C-453C-A5DA-07540BC67208}.Release|Any CPU.Build.0 = Release|Any CPU
+		{17996421-BD76-48C2-9994-58B76BD29E39}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{17996421-BD76-48C2-9994-58B76BD29E39}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{17996421-BD76-48C2-9994-58B76BD29E39}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{17996421-BD76-48C2-9994-58B76BD29E39}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

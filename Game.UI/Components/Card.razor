@@ -1,0 +1,31 @@
+@using Game.UI.Services
+
+<div class="card @(CardData.IsSelected ? "selected" : "") @CardData.SuitColor" 
+     @onclick="HandleClick"
+     @onclick:preventDefault>
+    <div class="card-inner">
+        <div class="card-rank">@CardData.Rank</div>
+        <div class="card-suit">@CardData.SuitSymbol</div>
+        @if (CardData.Score > 0)
+        {
+            <div class="card-score">@CardData.Score</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public CardViewModel CardData { get; set; } = null!;
+    
+    [Parameter]
+    public EventCallback<CardViewModel> OnCardClick { get; set; }
+    
+    private async Task HandleClick()
+    {
+        if (OnCardClick.HasDelegate)
+        {
+            await OnCardClick.InvokeAsync(CardData);
+        }
+    }
+}
+
